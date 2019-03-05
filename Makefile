@@ -16,7 +16,7 @@ places.out: objects/places.o objects/helpers.o
 achat.out: objects/achat.o objects/helpers.o
 	$(CC) $^ -o $@ $(LDFLAGS)
 
-objects/helpers.o: objects/helpers.h
+objects/helpers.o: src/helpers.h
 
 objects/%.o: src/%.c
 	$(CC) -c $< -o $@ $(CFLAGS)
