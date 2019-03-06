@@ -15,7 +15,7 @@
         exit(EXIT_FAILURE); \
     } while (0)
 #define printf_warning(msg) \
-    fprintf(stderr, ANSI_BOLD ANSI_YELLOW "ERREUR" ANSI_RESET " - ""%s:%d - %s\n", __FILE__, __LINE__, msg)
+    fprintf(stderr, ANSI_BOLD ANSI_YELLOW "WARNING" ANSI_RESET " - ""%s:%d - %s\n", __FILE__, __LINE__, msg)
 #define handle_error() printf_err_exit(strerror(errno))
 #define printf_info(msg) \
     fprintf(stderr, ANSI_BOLD ANSI_BLUE "INFO" ANSI_RESET " - %s\n", msg)
