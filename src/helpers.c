@@ -123,7 +123,7 @@ int boucle_send(int sock, void *buf, int lg, struct sockaddr_in *addrs, size_t l
     return 0;
 }
 
-int bind_new_socket(int domain, int type, int protocol, ushort port)
+int listen_new_socket(int domain, int type, int protocol, ushort port, int nb_conn)
 {
     int sock;
     struct sockaddr_in addrLocale;
@@ -138,7 +138,11 @@ int bind_new_socket(int domain, int type, int protocol, ushort port)
         close(sock);
         return -2;
     }
-
+    if (listen(sock, nb_conn) != 0) {
+        close(sock);
+        return -3;
+    }
     display_any_address(addrLocale.sin_family, port);
+
     return sock;
 }

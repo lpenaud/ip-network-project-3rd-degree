@@ -28,6 +28,6 @@ int display_ip(void);
 int display_any_address(const int family, const ushort port);
 char mgetchar(char fin);
 int boucle_send(int sock, void *buf, int lg, struct sockaddr_in *addrs, size_t len);
-int bind_new_socket(int domain, int type, int protocol, ushort port);
+int listen_new_socket(int domain, int type, int protocol, ushort port, int nb_conn);
 
 #endif
