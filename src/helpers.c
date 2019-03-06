@@ -5,45 +5,11 @@
 #include <arpa/inet.h>  // inet_ntoa
 #include <ifaddrs.h>
 #include <netdb.h>
+#include <errno.h>
 
 #include "helpers.h"
 
-int display_hostname(void)
-{
-    char name[BUF_MAX];
-    if (gethostname(name, BUF_MAX) == -1) {
-        return -1;
-    }
-    printf("hostname: %s\n", name);
-    return 0;
-}
-
-int display_ip_from_str(char *name)
-{
-    struct hostent *h;
-    struct in_addr och;
-
-    if ((h = gethostbyname(name)) == NULL) {
-        return -1;
-    }
-
-    bcopy(h->h_addr_list[0], &och, h->h_length);
-    printf("address: %u\nadresse pointée %s\n", och.s_addr, inet_ntoa(och));
-
-    return 0;
-}
-
-int display_ip(void)
-{
-    char name[BUF_MAX];
-
-    if (gethostname(name, BUF_MAX) == -1) {
-        return -1;
-    }
-
-    return display_ip_from_str(name);
-}
-
+// Affiche les informations sur les cartes réseaux de famille AF_INET(6)
 int display_any_address(const int family, const ushort port)
 {
     struct ifaddrs *ifaddr, *ifa;
@@ -55,17 +21,20 @@ int display_any_address(const int family, const ushort port)
         return -1;
     }
 
+    // Obtention de la liste des cartes réseaux
     if (getifaddrs(&ifaddr) == -1) {
         perror("getifaddrs");
-        return -1;
+        return errno;
     }
 
     printf("Server listening :\n");
+    // On parcourt la liste des cartes réseaux
     for (ifa = ifaddr; ifa; ifa = ifa->ifa_next) {
         if (ifa->ifa_addr == NULL) continue;
 
+        // Si la carte réseau est de la bonne famille
         if ((sa_family = ifa->ifa_addr->sa_family) == family) {
-            /* Get IP adress */
+            // Obtention des informations de la carte
             s = getnameinfo(ifa->ifa_addr,
                 sa_family == AF_INET
                     ? sizeof(struct sockaddr_in)
@@ -76,10 +45,14 @@ int display_any_address(const int family, const ushort port)
                 0,
                 NI_NUMERICHOST
             );
+            // Si l'obtention des informations a échoué
             if (s != 0) {
                 printf("getnameinfo() failed: %s\n", gai_strerror(s));
                 goto err;
             }
+            /* Sinon on affiche les informations sur ce format :
+                - On <nom>:     <adresse ip>:<port>
+            */
             printf("\t- On %s:\t%s%s:%s%hu%s\n",
                 ifa->ifa_name,
                 ANSI_CYAN,
@@ -92,10 +65,12 @@ int display_any_address(const int family, const ushort port)
     }
 
 err:
+    // On libère la mémoire des cartes réseaux
     freeifaddrs(ifaddr);
     return s;
 }
 
+// Permet d'éviter des bogues de buffer si on est dans une boucle
 char mgetchar(char fin) {
     char c = fin, tmp;
     while ((tmp = getchar()) != fin) {
@@ -104,6 +79,7 @@ char mgetchar(char fin) {
     return c;
 }
 
+// Permet d'envoyer un buffer à plusieurs hôtes
 int boucle_send(int sock, void *buf, int lg, struct sockaddr_in *addrs, size_t len)
 {
     int etat;
@@ -123,26 +99,39 @@ int boucle_send(int sock, void *buf, int lg, struct sockaddr_in *addrs, size_t l
     return 0;
 }
 
+/*
+    Créer une nouvelle socket
+    l'attache sur un port donné et sur tout les cartes réseaux disponibles
+    Fait écouter la socket pour un nombre de connexions donné
+
+    Retourne le descripteur de fichier de la socket
+*/
 int listen_new_socket(int domain, int type, int protocol, ushort port, int nb_conn)
 {
     int sock;
     struct sockaddr_in addrLocale;
 
+    // Création de la socket
     if ((sock = socket(domain, type, protocol)) == -1)
         return -1;
 
+    // Préparation de l'adresse locale
     addrLocale.sin_family = domain;
     addrLocale.sin_port = htons(port);
     addrLocale.sin_addr.s_addr = htonl(INADDR_ANY);
+    // Attache la socket sur `port` port
     if (bind(sock, (struct sockaddr *) &addrLocale, sizeof(addrLocale)) == -1) {
         close(sock);
         return -2;
     }
+    // La socket écoute pour `nb_conn` connexion
     if (listen(sock, nb_conn) != 0) {
         close(sock);
         return -3;
     }
+    // On affiche les informations des cartes réseau compatible
     display_any_address(addrLocale.sin_family, port);
 
+    // On retourne le descripteur de fichier
     return sock;
 }
