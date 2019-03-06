@@ -1,14 +1,13 @@
 #ifndef HELPERS_H
 #define HELPERS_H
 
-#define TRUE        1
-#define FALSE       0
 #define BUF_MAX     256
+#define ANSI_RESET  "\x1b[0m"
 #define ANSI_BOLD   "\x1b[1m"
 #define ANSI_RED    "\x1b[31m"
 #define ANSI_YELLOW "\x1b[33m"
 #define ANSI_CYAN   "\x1b[36m"
-#define ANSI_RESET  "\x1b[0m"
+#define ANSI_BLUE   "\x1b[94m"
 
 #define printf_err_exit(msg) \
     do {\
@@ -18,6 +17,8 @@
 #define printf_warning(msg) \
     fprintf(stderr, ANSI_BOLD ANSI_YELLOW "ERREUR" ANSI_RESET " - ""%s:%d - %s\n", __FILE__, __LINE__, msg)
 #define handle_error() printf_err_exit(strerror(errno))
+#define printf_info(msg) \
+    fprintf(stderr, ANSI_BOLD ANSI_BLUE "INFO" ANSI_RESET " - %s\n", msg)
 
 typedef unsigned short ushort;
 typedef unsigned int uint;
