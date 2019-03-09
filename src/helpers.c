@@ -8,42 +8,6 @@
 
 #include "helpers.h"
 
-int display_hostname(void)
-{
-    char name[BUF_MAX];
-    if (gethostname(name, BUF_MAX) == -1) {
-        return -1;
-    }
-    printf("hostname: %s\n", name);
-    return 0;
-}
-
-int display_ip_from_str(char *name)
-{
-    struct hostent *h;
-    struct in_addr och;
-
-    if ((h = gethostbyname(name)) == NULL) {
-        return -1;
-    }
-
-    bcopy(h->h_addr_list[0], &och, h->h_length);
-    printf("address: %u\nadresse pointée %s\n", och.s_addr, inet_ntoa(och));
-
-    return 0;
-}
-
-int display_ip(void)
-{
-    char name[BUF_MAX];
-
-    if (gethostname(name, BUF_MAX) == -1) {
-        return -1;
-    }
-
-    return display_ip_from_str(name);
-}
-
 int display_any_address(const int family, const ushort port)
 {
     struct ifaddrs *ifaddr, *ifa;

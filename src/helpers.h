@@ -1,7 +1,7 @@
 #ifndef HELPERS_H
 #define HELPERS_H
 
-#define BUF_MAX     256
+#define BUF_SOCK    20
 #define ANSI_RESET  "\x1b[0m"
 #define ANSI_BOLD   "\x1b[1m"
 #define ANSI_RED    "\x1b[31m"
@@ -19,13 +19,13 @@
 #define handle_error() printf_err_exit(strerror(errno))
 #define printf_info(msg) \
     fprintf(stderr, ANSI_BOLD ANSI_BLUE "INFO" ANSI_RESET " - %s\n", msg)
+#define scanf_port(arg, p) \
+    if (sscanf(arg, "%d", &p) != 1 || p < 1 || p > 65535) \
+        printf_err_exit("The port must be a integer between 1 and 65535")
 
 typedef unsigned short ushort;
 typedef unsigned int uint;
 
-int display_hostname(void);
-int display_ip_from_str(char *name);
-int display_ip(void);
 int display_any_address(const int family, const ushort port);
 char mgetchar(char fin);
 int boucle_send(int sock, void *buf, int lg, struct sockaddr_in *addrs, size_t len);
