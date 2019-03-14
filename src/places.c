@@ -3,7 +3,6 @@
 #include <unistd.h>
 #include <strings.h>
 #include <arpa/inet.h>
-#include <ifaddrs.h>
 #include <netdb.h>
 #include <errno.h>
 #include <string.h>
@@ -77,7 +76,7 @@ int main(int argc, char const *argv[])
         printf_info(buf_log);
 
         // Lecture de la socket du client et vérification s'il n'y a pas d'erreur
-        if ((len = read(sock_client, buf, 20)) == -1) {
+        if ((len = read(sock_client, buf, BUF_SOCK)) == -1) {
             printf_warning(strerror(errno));
             goto loop_end;
         }
