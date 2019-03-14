@@ -135,3 +135,14 @@ int listen_new_socket(int domain, int type, int protocol, ushort port, int nb_co
     // On retourne le descripteur de fichier
     return sock;
 }
+
+int find_index(int *array, size_t sz, int val)
+{
+    size_t i;
+    for (i = 0; i < sz; i++) {
+        if (array[i] == val) {
+            return i;
+        }
+    }
+    return -1;
+}

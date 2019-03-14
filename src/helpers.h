@@ -70,4 +70,6 @@ int boucle_send(int sock, void *buf, int lg, struct sockaddr_in *addrs, size_t l
 */
 int listen_new_socket(int domain, int type, int protocol, ushort port, int nb_conn);
 
+int find_index(int *array, size_t sz, int val);
+
 #endif
