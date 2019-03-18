@@ -146,3 +146,28 @@ int find_index(int *array, size_t sz, int val)
     }
     return -1;
 }
+
+int connect_new_socket(int domain, int type, int protocol, char *hostname, ushort port)
+{
+    int sock;
+    struct sockaddr_in addr;
+    struct hostent *hote;
+
+    if ((hote = gethostbyname(hostname)) == NULL) {
+        return -1;
+    }
+
+    if ((sock = socket(domain, type, protocol)) == -1) {
+        return -2;
+    }
+
+    addr.sin_family = domain;
+    addr.sin_port = htons(port);
+    bcopy(hote->h_addr, &addr.sin_addr, hote->h_length);
+
+    if (connect(sock, (struct sockaddr *) &addr, sizeof(addr)) == -1) {
+        return -3;
+    }
+
+    return sock;
+}

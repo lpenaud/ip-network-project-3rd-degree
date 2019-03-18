@@ -72,4 +72,6 @@ int listen_new_socket(int domain, int type, int protocol, ushort port, int nb_co
 
 int find_index(int *array, size_t sz, int val);
 
+int connect_new_socket(int domain, int type, int protocol, char *hostname, ushort port);
+
 #endif
