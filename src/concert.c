@@ -12,32 +12,41 @@
 #include "helpers.h"
 
 static int sock;
-static int *children;
+static int *children, maxchild;
 
 static void handler(int signum)
 {
-    close(sock);
-    free(children);
+    int i, st;
     fprintf(stderr, "Receiving the signal %d\n", signum);
+
+    // Close sockets
+    close(sock);
+
+    for (i = 0; i < maxchild; i++) {
+        waitpid(children[i], &st, 0);
+    }
+    free(children);
+
     printf("Bye !\n");
     exit(EXIT_SUCCESS);
 }
 
-int main(int argc, char const *argv[])
+int main(int argc, char *argv[])
 {
-    int port, sock;
+    int port;
     char buf_log[80], buf[BUF_SOCK];
     struct sockaddr_in addr_client;
     socklen_t addr_client_len;
     int sock_client, len, len_write;
 
-    int nbchild, maxchild, childst;
-    int pid;
+    int nbchild, childst;
+    int pid, ticket;
+    int sock_places;
 
     struct sigaction sa;
 
-    if (argc != 3) {
-        printf("Usage: %s <port> <number of child process>\n", argv[0]);
+    if (argc != 5) {
+        printf("Usage: %s <port> <number of child process> <hostname places> <port places>\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 
@@ -47,10 +56,19 @@ int main(int argc, char const *argv[])
     }
     if ((children = (int *) malloc(sizeof(int) * maxchild)) == NULL)
         handle_error();
+
+    for (nbchild = 0; nbchild < maxchild; nbchild++) {
+        children[nbchild] = -1;
+    }
     nbchild = 0;
 
     scanf_port(argv[1], port);
     if ((sock = listen_new_socket(AF_INET, SOCK_STREAM, 0, port, 10)) < 0) {
+        handle_error();
+    }
+
+    scanf_port(argv[4], port);
+    if ((sock_places = connect_new_socket(AF_INET, SOCK_STREAM, 0, argv[3], port)) < 0) {
         handle_error();
     }
 
@@ -83,12 +101,40 @@ int main(int argc, char const *argv[])
                 pid = getpid();
                 sprintf(buf_log, "[%d] I take care of the new client", pid);
                 printf_info(buf_log);
+
+                // Receive nb places
                 if ((len = read(sock_client, buf, BUF_SOCK)) == -1) {
                     sprintf(buf_log, "[%d] %s", pid, strerror(errno));
                     close(sock_client);
                     printf_err_exit(buf_log);
                 }
-                len = sprintf(buf, "[%d] Hello\n", pid) + 1;
+                if (sscanf(buf, "%d", &ticket) != 1 && ticket < 0) {
+                    sprintf(buf_log, "[%d] I received : \"%s\", I exit", pid, buf);
+                    write(sock_client, buf, len);
+                    close(sock_client);
+                    printf_err_exit(buf_log);
+                }
+                sprintf(buf_log, "[%d] I received %d", pid, ticket);
+                len = sprintf(buf, "%d", -ticket) + 1;
+
+                // Ask tickets
+                sprintf(buf_log, "[%d] I write %s", pid, buf);
+                printf_info(buf_log);
+                if ((len_write = write(sock_places, buf, len)) != len) {
+                    if (len_write == -1) {
+                        printf_warning(strerror(errno));
+                    }
+                    sprintf(buf_log, "%d bytes were sent out of %d", len, len_write);
+                    printf_warning(buf_log);
+                    sprintf(buf, "0");
+                }
+                if ((len = read(sock_places, buf, BUF_SOCK)) == -1) {
+                    printf_warning(strerror(errno));
+                    len = sprintf(buf, "-1") + 1;
+                }
+                printf_info("UI");
+
+                // Send tickets
                 if ((len_write = write(sock_client, buf, len)) != len) {
                     if (len_write == -1) {
                         sprintf(buf_log, "[%d] %s", pid, strerror(errno));
