@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-W -Wall -pedantic
+CFLAGS=-W -Wall -pedantic -std=gnu99
 LDFLAGS=
 
 all: index.html concert.out places.out achat.out
