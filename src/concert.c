@@ -40,7 +40,7 @@ int main(int argc, char *argv[])
     int sock_client, len, len_write;
 
     int nbchild, childst;
-    int pid, ticket;
+    int pid, tmp, ticket;
     int sock_places;
 
     struct sigaction sa;
@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
     }
 
     if (sscanf(argv[2], "%d", &maxchild) != 1 || maxchild < 0 || maxchild > sysconf(_SC_CHILD_MAX)) {
-        sprintf(buf_log, "The number of processes must be included between 0 and %ld", sysconf(_SC_CHILD_MAX));
+        sprintf(buf_log, "The number of subprocesses must be included between 0 and %ld", sysconf(_SC_CHILD_MAX));
         printf_err_exit(buf_log);
     }
     if ((children = (int *) malloc(sizeof(int) * maxchild)) == NULL)
@@ -67,10 +67,8 @@ int main(int argc, char *argv[])
         handle_error();
     }
 
+    // Scan places port 
     scanf_port(argv[4], port);
-    if ((sock_places = connect_new_socket(AF_INET, SOCK_STREAM, 0, argv[3], port)) < 0) {
-        handle_error();
-    }
 
     sa.sa_handler = handler;
     sigemptyset(&sa.sa_mask);
@@ -108,18 +106,22 @@ int main(int argc, char *argv[])
                     close(sock_client);
                     printf_err_exit(buf_log);
                 }
-                if (sscanf(buf, "%d", &ticket) != 1 && ticket < 0) {
+                if (sscanf(buf, "%d", &tmp) != 1 && tmp < 0) {
                     sprintf(buf_log, "[%d] I received : \"%s\", I exit", pid, buf);
                     write(sock_client, buf, len);
                     close(sock_client);
                     printf_err_exit(buf_log);
                 }
-                sprintf(buf_log, "[%d] I received %d", pid, ticket);
-                len = sprintf(buf, "%d", -ticket) + 1;
+                sprintf(buf_log, "[%d] I received %d", pid, tmp);
+                len = sprintf(buf, "%d", -tmp) + 1;
+
+                
+                if ((sock_places = connect_new_socket(AF_INET, SOCK_STREAM, 0, argv[3], port)) < 0) {
+                    handle_error();
+                }
 
                 // Ask tickets
                 sprintf(buf_log, "[%d] I write %s", pid, buf);
-                printf_info(buf_log);
                 if ((len_write = write(sock_places, buf, len)) != len) {
                     if (len_write == -1) {
                         printf_warning(strerror(errno));
@@ -128,11 +130,16 @@ int main(int argc, char *argv[])
                     printf_warning(buf_log);
                     sprintf(buf, "0");
                 }
+                printf_info(buf_log);
                 if ((len = read(sock_places, buf, BUF_SOCK)) == -1) {
                     printf_warning(strerror(errno));
                     len = sprintf(buf, "-1") + 1;
                 }
-                printf_info("UI");
+
+                if (sscanf(buf, "%d", &tickets) != -1) {
+                    sprintf(buf_log, "[%d] I received \"%s\" from places app", pid, buf);
+                    printf_error(buf_log);
+                }
 
                 // Send tickets
                 if ((len_write = write(sock_client, buf, len)) != len) {
@@ -143,6 +150,12 @@ int main(int argc, char *argv[])
                     sprintf(buf_log, "[%d] %d bytes were sent out of %d\n", pid, len_write, len);
                     printf_warning(buf_log);
                 }
+
+                if ((len = read(sock_client, buf, BUF_SOCK)) == -1) {
+                    sprintf(buf_log, "[%d] %s", pid, strerror(errno));
+                    printf_
+                }
+
                 close(sock_client);
                 return 0;
             default:
