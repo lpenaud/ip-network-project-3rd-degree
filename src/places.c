@@ -87,6 +87,8 @@ int main(int argc, char const *argv[])
             goto loop_end;
         }
         // Si l'entier en positif, libération des billets
+        sprintf(buf_log, "I received : %d, number of ticket %d", res, tickets);
+        printf_info(buf_log);
         if (res > 0) {
             tickets += res;
         } else {
@@ -107,7 +109,7 @@ int main(int argc, char const *argv[])
                 tickets += res;
             }
         }
-        sprintf(buf_log, "I received : %d, number of ticket %d", res, tickets);
+        sprintf(buf_log, "After traitement they are %d tickets");
         printf_info(buf_log);
 
         // On prépare le buffer pour l'envoie
