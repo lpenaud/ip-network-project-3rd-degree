@@ -82,12 +82,12 @@ int main(int argc, char const *argv[])
         }
         // Scanne de la socket pour vérifier s'il y a bien un entier
         if (sscanf(buf, "%d", &res) != 1) {
-            sprintf(buf_log, "I received : \"%s\", I ignore", buf);
+            sprintf(buf_log, "I received \"%s\", I ignore", buf);
             printf_warning(buf_log);
             goto loop_end;
         }
         // Si l'entier en positif, libération des billets
-        sprintf(buf_log, "I received : %d, number of ticket %d", res, tickets);
+        sprintf(buf_log, "I received %d, number of ticket %d", res, tickets);
         printf_info(buf_log);
         if (res > 0) {
             tickets += res;
@@ -109,7 +109,7 @@ int main(int argc, char const *argv[])
                 tickets += res;
             }
         }
-        sprintf(buf_log, "After traitement they are %d tickets");
+        sprintf(buf_log, "After traitement there are %d tickets", tickets);
         printf_info(buf_log);
 
         // On prépare le buffer pour l'envoie
