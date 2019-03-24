@@ -32,17 +32,18 @@ int main(int argc, char const *argv[])
 {
 	int port;
 
+
 	struct sigaction sa;
 
 	socklen_t addr_server_len;
 	struct sockaddr_in addr_server;
-	char buf[BUF_SOCK];
+	char buf[BUF_SOCK], coordonnee[BUF_SOCK], buf_log[80];
 
 	struct hostent *hote;
 
-	unsigned int send;
+	unsigned int send, size;
 
-	int len;
+	int len, res = 0, nbaskticket = 1;
 
 	/* informations sur les tickets envoyé à Concert */
 	char *tickets = malloc(sizeof(int));
@@ -96,21 +97,55 @@ int main(int argc, char const *argv[])
 	fflush(stdout);
 
 
-	while(1){
+	while(res < nbaskticket){
 
-
-
-		/* lecture des informations encoyé par l'application concert */
-		if ((len = read(sock, buf, (sizeof(char)*BUF_SOCK))) == -1) {
-			printf_warning(strerror(errno));
-			goto loop_end;
-		}
-		printf("%s\n",buf);
-
+		/*----------CATEGORIE------------*/
+		printf("Categories des tickets :\n[1] [2] [3]\n");
 		/* informations entré par le consommateur */
-		scanf("%s", tickets);
+		scanf("%s", buf);
+		if (sscanf(buf, "%d", &res) != 1) {
+			sprintf(buf_log, "I received : \"%s\", I ignore", buf);
+			printf_warning(buf_log);
+		}
+		if(res < 0 && res > 4){
+			sprintf(buf_log, "I received : \"%s\", I ignore", buf);
+			printf_warning(buf_log);
+		}
+		strcpy(tickets, buf);
 
-		if ((send = write(sock, tickets, sizeof(int))) !=  sizeof(int))
+		/*----------TICKET NORMAL------------*/
+		printf("Nombre tickets normal:\n");
+		scanf("%s", buf);
+		if (sscanf(buf, "%d", &res) != 1) {
+			sprintf(buf_log, "I received : \"%s\", I ignore", buf);
+			printf_warning(buf_log);
+		}
+		if(res < 0 ){
+			sprintf(buf_log, "I received : \"%s\", I ignore", buf);
+			printf_warning(buf_log);
+		}
+		nbaskticket += res - 1;
+		strcat(tickets, " ");
+		strcat(tickets, buf);
+
+		/*----------TICKET ETUDIANT------------*/
+		printf("Nombre tickets etudiant:\n");
+		scanf("%s", buf);
+		if (sscanf(buf, "%d", &res) != 1) {
+			sprintf(buf_log, "I received : \"%s\", I ignore", buf);
+			printf_warning(buf_log);
+		}
+		if(res < 0 ){
+			sprintf(buf_log, "I received : \"%s\", I ignore", buf);
+			printf_warning(buf_log);
+		}
+		nbaskticket += res;
+		strcat(tickets, " ");
+		strcat(tickets, buf);
+
+
+		size = (sizeof(int)*3)+(sizeof(char)*3);
+		if ((send = write(sock, tickets, size)) !=  size)
 		{
 			/* Si la fonction a été interrompu par signal, on ignore l'erreur*/
 			if (errno == EINTR) continue;
@@ -119,7 +154,30 @@ int main(int argc, char const *argv[])
 		}
 
 
+		/* lecture des informations encoyé par l'application concert */
+		if ((len = read(sock, buf, (sizeof(char)*BUF_SOCK))) == -1) {
+			printf_warning(strerror(errno));
+			goto loop_end;
+		}
+		sscanf(buf, "%d", &res);
 	}
+/* TODO VERIFIER COORDONNEE CORRECTE*/
+/*
+	printf("Numero carte:\n");
+
+	scanf("%s", buf);
+	strcpy(coordonnee, buf);
+
+	printf("Date de validité:\n");
+
+	scanf("%s", buf);
+	strcat(coordonnee, buf);
+
+	printf("Code a 3 chiffres:\n");
+
+	scanf("%s", buf);
+	strcat(coordonnee, buf);
+*/
 loop_end:
 	close(sock);
 
