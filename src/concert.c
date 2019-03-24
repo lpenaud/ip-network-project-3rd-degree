@@ -31,17 +31,108 @@ static void handler(int signum)
     exit(EXIT_SUCCESS);
 }
 
+int ask_ticket(const int sock_client, char buf[BUF_SOCK], char buf_log[BUF_LOG], int *categorie, int *ticket, char *hostname, const ushort port)
+{
+    const pid_t pid = getpid();
+    const int prices[CAT_MAX] = { 50, 30, 20 };
+    const int sock_places = connect_new_socket(AF_INET, SOCK_STREAM, 0, hostname, port);
+    int cat, nticket, sticket, rticket, tticket, len, len_write;
+
+    if (sock_places < 0) {
+        sprintf(buf_log, "[%d] %s", pid, strerror(errno));
+        return -1;
+    }
+
+    do {
+        // Receive nb places from achat app
+        if ((len = read(sock_client, buf, BUF_SOCK)) == -1) {
+            sprintf(buf_log, "[%d] %s", pid, strerror(errno));
+            return -1;
+        }
+        if (sscanf(buf, "%d %d %d", &cat, &nticket, &sticket) != 3
+            || cat < CAT_MIN || cat > CAT_MAX
+            || nticket < 0
+            || sticket < 0
+            || (nticket == 0 && sticket == 0)) {
+            sprintf(buf_log, "[%d] I received : \"%s\", I exit", pid, buf);
+            return -1;
+        }
+        sprintf(buf_log, "[%d] I received %s from achat app", pid, buf);
+        printf_info(buf_log);
+
+        // Ask for ticket to places app
+        tticket = -(nticket + sticket);
+        //TODO: Sent categorie
+        len = sprintf(buf, "%d", tticket) + 1;
+        if ((len_write = write(sock_places, buf, len)) != len) {
+            if (len_write == -1)
+                sprintf(buf_log, "[%d] %s", pid, strerror(errno));
+            else
+                sprintf(buf_log, "[%d] %d bytes were sent out of %d", pid, len, len_write);
+            return -1;
+        }
+        sprintf(buf_log, "[%d] I send %s to places app", pid, buf);
+        printf_info(buf_log);
+
+        // Read response from places app
+        if ((len = read(sock_places, buf, BUF_SOCK)) == -1) {
+            sprintf(buf_log, "[%d] %s", pid, strerror(errno));
+            return -1;
+        }
+        if (sscanf(buf, "%d", &rticket) != 1) {
+            sprintf(buf_log, "[%d] I received \"%s\" from places app", pid, buf);
+            return -1;
+        }
+        sprintf(buf_log, "[%d] I received %d from places app", pid, rticket);
+        printf_info(buf_log);
+
+        // Send tickets to achat app
+        len = sprintf(buf, "%d", -(rticket)) + 1;
+        if ((len_write = write(sock_client, buf, len)) != len) {
+            if (len_write == -1)
+                sprintf(buf_log, "[%d] %s", pid, strerror(errno));
+             else
+                sprintf(buf_log, "[%d] %d bytes were sent out of %d\n", pid, len_write, len);
+            return -1;
+        }
+    } while(tticket != rticket);
+
+    close(sock_places);
+    *ticket = tticket;
+    *categorie = cat--;
+    return prices[cat] * nticket + ((prices[cat] - (prices[cat] * 20 / 100)) * sticket);
+}
+
+int fork_job(int sock_client, char buf[BUF_SOCK], char buf_log[BUF_LOG], char *hostname, const ushort port)
+{
+    const pid_t pid = getpid();
+    int cat, ticket, price;
+
+    sprintf(buf_log, "[%d] I take care of the new client", pid);
+    printf_info(buf_log);
+
+    if ((price = ask_ticket(sock_client, buf, buf_log, &cat, &ticket, hostname, port)) == -1) {
+        return -1;
+    }
+    sprintf(buf_log, "[%d] %d €", pid, price);
+    printf_info(buf_log);
+
+    //TODO: payment
+
+    close(sock_client);
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
     int port;
-    char buf_log[80], buf[BUF_SOCK];
+    char buf_log[BUF_LOG], buf[BUF_SOCK];
     struct sockaddr_in addr_client;
     socklen_t addr_client_len;
-    int sock_client, len, len_write;
+    int sock_client;
 
     int nbchild, childst;
-    int pid, tmp, ticket;
-    int sock_places;
+    int pid;
 
     struct sigaction sa;
 
@@ -67,7 +158,7 @@ int main(int argc, char *argv[])
         handle_error();
     }
 
-    // Scan places port 
+    // Scan places port
     scanf_port(argv[4], port);
 
     sa.sa_handler = handler;
@@ -96,72 +187,14 @@ int main(int argc, char *argv[])
             case -1:
                 handle_error();
             case 0:
-                pid = getpid();
-                sprintf(buf_log, "[%d] I take care of the new client", pid);
-                printf_info(buf_log);
-
-                // Receive nb places
-                if ((len = read(sock_client, buf, BUF_SOCK)) == -1) {
-                    sprintf(buf_log, "[%d] %s", pid, strerror(errno));
-                    close(sock_client);
+                if (fork_job(sock_client, buf, buf_log, argv[3], port) == -1) {
                     printf_err_exit(buf_log);
                 }
-                if (sscanf(buf, "%d", &tmp) != 1 && tmp < 0) {
-                    sprintf(buf_log, "[%d] I received : \"%s\", I exit", pid, buf);
-                    write(sock_client, buf, len);
-                    close(sock_client);
-                    printf_err_exit(buf_log);
-                }
-                sprintf(buf_log, "[%d] I received %d", pid, tmp);
-                len = sprintf(buf, "%d", -tmp) + 1;
-
-                
-                if ((sock_places = connect_new_socket(AF_INET, SOCK_STREAM, 0, argv[3], port)) < 0) {
-                    handle_error();
-                }
-
-                // Ask tickets
-                sprintf(buf_log, "[%d] I write %s", pid, buf);
-                if ((len_write = write(sock_places, buf, len)) != len) {
-                    if (len_write == -1) {
-                        printf_warning(strerror(errno));
-                    }
-                    sprintf(buf_log, "%d bytes were sent out of %d", len, len_write);
-                    printf_warning(buf_log);
-                    sprintf(buf, "0");
-                }
-                printf_info(buf_log);
-                if ((len = read(sock_places, buf, BUF_SOCK)) == -1) {
-                    printf_warning(strerror(errno));
-                    len = sprintf(buf, "-1") + 1;
-                }
-
-                if (sscanf(buf, "%d", &tickets) != -1) {
-                    sprintf(buf_log, "[%d] I received \"%s\" from places app", pid, buf);
-                    printf_error(buf_log);
-                }
-
-                // Send tickets
-                if ((len_write = write(sock_client, buf, len)) != len) {
-                    if (len_write == -1) {
-                        sprintf(buf_log, "[%d] %s", pid, strerror(errno));
-                        printf_err_exit(buf_log);
-                    }
-                    sprintf(buf_log, "[%d] %d bytes were sent out of %d\n", pid, len_write, len);
-                    printf_warning(buf_log);
-                }
-
-                if ((len = read(sock_client, buf, BUF_SOCK)) == -1) {
-                    sprintf(buf_log, "[%d] %s", pid, strerror(errno));
-                    printf_
-                }
-
-                close(sock_client);
-                return 0;
+                exit(EXIT_SUCCESS);
             default:
                 close(sock_client);
         }
     }
 
-    return 0;
+    exit(EXIT_SUCCESS);
 }
