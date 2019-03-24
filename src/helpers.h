@@ -1,7 +1,10 @@
 #ifndef HELPERS_H
 #define HELPERS_H
 
+#define CAT_MIN     1
+#define CAT_MAX     3
 #define BUF_SOCK    20
+#define BUF_LOG     80
 #define ANSI_RESET  "\x1b[0m"
 #define ANSI_BOLD   "\x1b[1m"
 #define ANSI_RED    "\x1b[31m"
