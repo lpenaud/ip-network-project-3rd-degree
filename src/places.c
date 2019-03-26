@@ -29,7 +29,7 @@ int main(int argc, char const *argv[])
 
     int sock_client, len, len_write;
     int res;
-    int tickets = 300;
+    int tickets[] = { 50, 150, 100 }, cat;
 
     // Vérification nombre d'argument
     if (argc != 2) {
@@ -71,35 +71,36 @@ int main(int argc, char const *argv[])
             goto loop_end;
         }
         // Scanne de la socket pour vérifier s'il y a bien un entier
-        if (sscanf(buf, "%d", &res) != 1) {
+        if (sscanf(buf, "%d %d", &cat, &res) != 2 || cat < CAT_MIN || cat > CAT_MAX) {
             sprintf(buf_log, "I received \"%s\", I ignore", buf);
             printf_warning(buf_log);
             goto loop_end;
         }
-        // Si l'entier en positif, libération des billets
-        sprintf(buf_log, "I received %d, number of ticket %d", res, tickets);
+        cat--;
+        sprintf(buf_log, "I received %d %d, number of ticket %d of this categorie", res, cat, tickets[cat]);
         printf_info(buf_log);
+        // Si l'entier en positif, libération des billets
         if (res > 0) {
-            tickets += res;
+            tickets[cat] += res;
         } else {
             // On vérifie la disponibilité des billets
-            if (tickets == 0) {
+            if (tickets[cat] == 0) {
                 // Il y a plus de billet
                 // on renvoie 0
                 // on ne touche pas le nombre de billet
                 res = 0;
-            } else if ((tickets + res) < 0) {
+            } else if ((tickets[cat] + res) < 0) {
                 // Il y a plus assez de billet
                 // on renvoie le nombre de billet disponible
                 // sans toucher au nombre de billet disponible
-                res = -tickets;
+                res = -tickets[cat];
             } else {
                 // Il y a suffisament de billet
                 // On soustraits le nombre de billet disponible
-                tickets += res;
+                tickets[cat] += res;
             }
         }
-        sprintf(buf_log, "After traitement there are %d tickets", tickets);
+        sprintf(buf_log, "After traitement there are %d tickets", tickets[cat]);
         printf_info(buf_log);
 
         // On prépare le buffer pour l'envoie
