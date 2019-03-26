@@ -10,26 +10,16 @@
 
 #include "helpers.h"
 
-// Socket du serveur
-static int sock;
 
 // Handler de SIGINT (Ctrl+C)
 static void handler(int signum)
 {
-    // On ferme la soket
-    close(sock);
-
-    // On dit au revoir
     fprintf(stderr, "Receiving the signal %d\n", signum);
-    printf("Bye !\n");
-
-    // On quitte le programme
-    exit(EXIT_SUCCESS);
 }
 
 int main(int argc, char const *argv[])
 {
-    int port;
+    int port, sock;
 
     struct sigaction sa;
 
@@ -56,18 +46,18 @@ int main(int argc, char const *argv[])
     // On s'occupe du signal SIGINT (Ctrl+C)
     sa.sa_handler = handler;
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESTART;
+    sa.sa_flags = SA_INTERRUPT;
     if (sigaction(SIGINT, &sa, NULL) == -1) {
         handle_error();
     }
 
     // Boucle de traitement
-    while (1) {
+    for(;;) {
         // En attente d'un client
         addr_client_len = sizeof(addr_client);
         if ((sock_client = accept(sock, (struct sockaddr *) &addr_client, &addr_client_len)) == -1) {
-            // Si la fonction a été interrompu par signal, on ignore l'erreur
-            if (errno == EINTR) continue;
+            // Si la fonction a été interrompu par signal, on stoppe le programme avec le code 0
+            if (errno == EINTR) goto end;
             // Sinon l'erreur est plus grave on stop le programme
             handle_error();
         }
@@ -131,5 +121,7 @@ loop_end:
         close(sock_client);
     }
 
-    return 0;
+end:
+    close(sock);
+    exit(EXIT_SUCCESS);
 }

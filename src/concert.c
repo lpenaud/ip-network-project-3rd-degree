@@ -11,24 +11,11 @@
 
 #include "helpers.h"
 
-static int sock;
 static int *children, maxchild;
 
 static void handler(int signum)
 {
-    int i, st;
     fprintf(stderr, "Receiving the signal %d\n", signum);
-
-    // Close sockets
-    close(sock);
-
-    for (i = 0; i < maxchild; i++) {
-        waitpid(children[i], &st, 0);
-    }
-    free(children);
-
-    printf("Bye !\n");
-    exit(EXIT_SUCCESS);
 }
 
 int ask_ticket(const int sock_client, char buf[BUF_SOCK], char buf_log[BUF_LOG], int *categorie, int *ticket, char *hostname, const ushort port)
@@ -125,8 +112,8 @@ int fork_job(int sock_client, char buf[BUF_SOCK], char buf_log[BUF_LOG], char *h
 
 int main(int argc, char *argv[])
 {
-    int port;
     char buf_log[BUF_LOG], buf[BUF_SOCK];
+    int port, sock;
     struct sockaddr_in addr_client;
     socklen_t addr_client_len;
     int sock_client;
@@ -163,15 +150,15 @@ int main(int argc, char *argv[])
 
     sa.sa_handler = handler;
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESTART;
+    sa.sa_flags = SA_INTERRUPT;
     if (sigaction(SIGINT, &sa, NULL) == -1) {
         handle_error();
     }
 
-    while (1) {
+    for(;;) {
         addr_client_len = sizeof(addr_client);
         if ((sock_client = accept(sock, (struct sockaddr *) &addr_client, &addr_client_len)) == -1) {
-            if (errno == EINTR) continue;
+            if (errno == EINTR) goto end;
             handle_error();
         }
         sprintf(buf_log, "%s has connected", inet_ntoa(addr_client.sin_addr));
@@ -196,5 +183,11 @@ int main(int argc, char *argv[])
         }
     }
 
+end:
+    close(sock);
+    do {
+        wait(&st);
+    } while (errno != ECHILD);
+    printf("Bye !");
     exit(EXIT_SUCCESS);
 }
