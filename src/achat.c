@@ -37,7 +37,7 @@ int main(int argc, char const *argv[])
 
 	socklen_t addr_server_len;
 	struct sockaddr_in addr_server;
-	char buf[BUF_SOCK], coordonnee[BUF_SOCK], buf_log[80];
+	char buf[BUF_SOCK], buf_log[80];
 
 	struct hostent *hote;
 
@@ -160,24 +160,24 @@ int main(int argc, char const *argv[])
 			goto loop_end;
 		}
 		sscanf(buf, "%d", &res);
+    printf("%d\n", res);
 	}
 /* TODO VERIFIER COORDONNEE CORRECTE*/
-/*
+
+
+if ((len = read(sock, buf, (sizeof(char)*BUF_SOCK))) == -1) {
+  printf_warning(strerror(errno));
+}
+
+  printf("Montant transaction : %s\n", buf);
 	printf("Numero carte:\n");
 
 	scanf("%s", buf);
-	strcpy(coordonnee, buf);
+  if ((send = write(sock, buf, sizeof(int))) !=  sizeof(int))
+  {
+    handle_error();
+  }
 
-	printf("Date de validité:\n");
-
-	scanf("%s", buf);
-	strcat(coordonnee, buf);
-
-	printf("Code a 3 chiffres:\n");
-
-	scanf("%s", buf);
-	strcat(coordonnee, buf);
-*/
 loop_end:
 	close(sock);
 
