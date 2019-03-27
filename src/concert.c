@@ -8,6 +8,7 @@
 #include <string.h>
 #include <signal.h>
 #include <sys/wait.h>
+#include <poll.h>
 
 #include "helpers.h"
 
@@ -15,8 +16,10 @@
 
 struct process {
     pid_t pid;
-    int ticket, categorie, sock_client;
+    int ticket, categorie, sock_client, timeout;
     char buf[BUF_SOCK], buf_log[BUF_LOG];
+    char *host_places;
+    ushort port_places;
 };
 
 static void handler(int signum)
@@ -24,11 +27,36 @@ static void handler(int signum)
     fprintf(stderr, "Receiving the signal %d\n", signum);
 }
 
-int ask_ticket(struct process *process, char *hostname, const ushort port)
+void fork_exit(struct process *p, int interrupt)
 {
-    const int prices[CAT_MAX] = { 50, 30, 20 };
-    const int sock_places = connect_new_socket(AF_INET, SOCK_STREAM, 0, hostname, port);
+    int len;
+    int fd;
+    if (interrupt != 0) {
+        sprintf(p->buf_log, "[%d] Timeout", p->pid);
+        len = sprintf(p->buf, "Timeout\n") + 1;
+        write(p->sock_client, p->buf, len);
+        if (p->ticket != -1) {
+            fd = connect_new_socket(AF_INET, SOCK_STREAM, 0, p->host_places, p->port_places);
+            if (fd == -1) {
+                sprintf(p->buf_log, "[%d] %s", p->pid, strerror(errno));
+                goto end;
+            }
+            len = sprintf(p->buf, "%d %d\n", p->categorie, p->ticket) + 1;
+            write(fd, p->buf, len);
+            close(fd);
+        }
+    }
+
+end:
+    close(p->sock_client);
+}
+
+int ask_ticket(struct process *process)
+{
+    int prices[] = { 50, 30, 20 };
     int cat, nticket, sticket, rticket, tticket, len, len_write;
+
+    const int sock_places = connect_new_socket(AF_INET, SOCK_STREAM, 0, process->host_places, process->port_places);
 
     if (sock_places < 0) {
         sprintf(process->buf_log, "[%d] %s", process->pid, strerror(errno));
@@ -37,10 +65,15 @@ int ask_ticket(struct process *process, char *hostname, const ushort port)
 
     do {
         // Receive nb places from achat app
+        alarm(process->timeout);
         if ((len = read(process->sock_client, process->buf, BUF_SOCK)) == -1) {
-            sprintf(process->buf_log, "[%d] %s", process->pid, strerror(errno));
+            if (errno == EINTR)
+                fork_exit(process, 1);
+            else
+                sprintf(process->buf_log, "[%d] %s", process->pid, strerror(errno));
             return -1;
         }
+        alarm(0);
         if (sscanf(process->buf, "%d %d %d", &cat, &nticket, &sticket) != 3
             || cat < CAT_MIN || cat > CAT_MAX
             || nticket < 0
@@ -53,8 +86,8 @@ int ask_ticket(struct process *process, char *hostname, const ushort port)
         printf_info(process->buf_log);
 
         // Ask for ticket to places app
-        tticket = -(nticket + sticket);
-        len = sprintf(process->buf, "%d %d", cat, tticket) + 1;
+        tticket = nticket + sticket;
+        len = sprintf(process->buf, "%d %d\n", cat, -tticket) + 1;
         if ((len_write = write(sock_places, process->buf, len)) != len) {
             if (len_write == -1)
                 sprintf(process->buf_log, "[%d] %s", process->pid, strerror(errno));
@@ -78,7 +111,8 @@ int ask_ticket(struct process *process, char *hostname, const ushort port)
         printf_info(process->buf_log);
 
         // Send tickets to achat app
-        len = sprintf(process->buf, "%d", -(rticket)) + 1;
+        rticket = -rticket;
+        len = sprintf(process->buf, "%d\n", rticket) + 1;
         if ((len_write = write(process->sock_client, process->buf, len)) != len) {
             if (len_write == -1)
                 sprintf(process->buf_log, "[%d] %s", process->pid, strerror(errno));
@@ -88,7 +122,6 @@ int ask_ticket(struct process *process, char *hostname, const ushort port)
         }
     } while(tticket != rticket);
 
-    close(sock_places);
     process->ticket = tticket;
     process->categorie = cat--;
     return prices[cat] * nticket + ((prices[cat] - (prices[cat] * 20 / 100)) * sticket);
@@ -98,8 +131,7 @@ int payment(struct process *process, const int price)
 {
     int len, len_write;
 
-    // FIXME: The client received more than the format below
-    len = sprintf(process->buf, "%d", price) + 1;
+    len = sprintf(process->buf, "%d\n", price) + 1;
     sprintf(process->buf_log, "[%d] I write : %s to the customer", process->pid, process->buf);
     printf_info(process->buf_log);
     if ((len_write = write(process->sock_client, process->buf, len)) != len) {
@@ -110,22 +142,29 @@ int payment(struct process *process, const int price)
         return -1;
     }
 
+    alarm(process->timeout);
     if ((len = read(process->sock_client, process->buf, BUF_SOCK)) == -1) {
-        sprintf(process->buf_log, "[%d] %s", process->pid, strerror(errno));
+        if (errno == EINTR)
+            fork_exit(process, 1);
+        else
+            sprintf(process->buf_log, "[%d] %s", process->pid, strerror(errno));
         return -1;
     }
+    alarm(0);
+    sprintf(process->buf_log, "[%d] I read %s", process->pid, process->buf);
+    printf_info(process->buf_log);
 
     return 0;
 }
 
-int fork_job(struct process *process, char *hostname, const ushort port)
+int fork_job(struct process *process)
 {
     int price;
 
     sprintf(process->buf_log, "[%d] I take care of the new client", process->pid);
     printf_info(process->buf_log);
 
-    if ((price = ask_ticket(process, hostname, port)) == -1) {
+    if ((price = ask_ticket(process)) == -1) {
         return -1;
     }
     sprintf(process->buf_log, "[%d] %d €", process->pid, price);
@@ -135,7 +174,7 @@ int fork_job(struct process *process, char *hostname, const ushort port)
         return -1;
     }
 
-    close(process->sock_client);
+    fork_exit(process, 0);
     return 0;
 }
 
@@ -150,8 +189,8 @@ int main(int argc, char *argv[])
 
     struct sigaction sa;
 
-    if (argc != 4) {
-        printf("Usage: %s <port> <hostname places> <port places>\n", argv[0]);
+    if (argc != 5) {
+        printf("Usage: %s <port> <hostname places> <port places> <timeout>\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 
@@ -162,6 +201,13 @@ int main(int argc, char *argv[])
 
     // Scan places port
     scanf_port(argv[3], port);
+    process.host_places = argv[2];
+    process.port_places = port;
+
+    if (sscanf(argv[4], "%d", &process.timeout) != 1 || process.timeout < 0) {
+        sprintf(process.buf_log, "Timeout must be upper than 0");
+        printf_err_exit(process.buf_log);
+    }
 
     sa.sa_handler = handler;
     sigemptyset(&sa.sa_mask);
@@ -188,11 +234,15 @@ int main(int argc, char *argv[])
             case -1:
                 handle_error();
             case 0:
+                if (sigaction(SIGALRM, &sa, NULL) == -1) {
+                    handle_error();
+                }
                 process.pid = getpid();
                 process.ticket = -1;
-                process.categorie = -1;
-                if (fork_job(&process, argv[2], port) == -1)
+                if (fork_job(&process) == -1)
                     printf_err_exit(process.buf_log);
+                sprintf(process.buf_log, "[%d] Bye !", process.pid);
+                printf_info(process.buf_log);
                 exit(EXIT_SUCCESS);
             default:
                 close(process.sock_client);
@@ -201,9 +251,10 @@ int main(int argc, char *argv[])
 
 end:
     close(sock);
+    printf("Wait subprocess...\n");
     do {
         wait(&st);
     } while (errno != ECHILD);
-    printf("Bye !");
+    printf("Bye !\n");
     exit(EXIT_SUCCESS);
 }

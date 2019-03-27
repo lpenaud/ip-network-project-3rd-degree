@@ -52,9 +52,11 @@ int main(int argc, char const *argv[])
     }
 
     // Boucle de traitement
+    addr_client_len = sizeof(addr_client);
     for(;;) {
         // En attente d'un client
-        addr_client_len = sizeof(addr_client);
+        sprintf(buf_log, "Waiting...");
+        printf_info(buf_log);
         if ((sock_client = accept(sock, (struct sockaddr *) &addr_client, &addr_client_len)) == -1) {
             // Si la fonction a été interrompu par signal, on stoppe le programme avec le code 0
             if (errno == EINTR) goto end;
@@ -68,16 +70,13 @@ int main(int argc, char const *argv[])
         // Lecture de la socket du client et vérification s'il n'y a pas d'erreur
         if ((len = read(sock_client, buf, BUF_SOCK)) == -1) {
             printf_warning(strerror(errno));
-            goto loop_end;
         }
         // Scanne de la socket pour vérifier s'il y a bien un entier
         if (sscanf(buf, "%d %d", &cat, &res) != 2 || cat < CAT_MIN || cat > CAT_MAX) {
             sprintf(buf_log, "I received \"%s\", I ignore", buf);
             printf_warning(buf_log);
-            goto loop_end;
         }
-        cat--;
-        sprintf(buf_log, "I received %d %d, number of ticket %d of this categorie", res, cat, tickets[cat]);
+        sprintf(buf_log, "I received %s, number of ticket %d of this categorie", buf, tickets[--cat]);
         printf_info(buf_log);
         // Si l'entier en positif, libération des billets
         if (res > 0) {
@@ -116,13 +115,10 @@ int main(int argc, char const *argv[])
                 printf_warning(buf_log);
             }
         }
-
-loop_end:
-        // On ferme la socket du client
-        close(sock_client);
     }
 
 end:
     close(sock);
+    printf("Bye !");
     exit(EXIT_SUCCESS);
 }
