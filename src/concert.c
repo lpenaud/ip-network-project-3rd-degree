@@ -22,6 +22,8 @@ struct process {
     ushort port_places;
 };
 
+static int prices[CAT_MAX];
+
 static void handler(int signum)
 {
     fprintf(stderr, "Receiving the signal %d\n", signum);
@@ -53,7 +55,6 @@ end:
 
 int ask_ticket(struct process *process)
 {
-    int prices[] = { 50, 30, 20 };
     int cat, nticket, sticket, rticket, tticket, len, len_write;
 
     const int sock_places = connect_new_socket(AF_INET, SOCK_STREAM, 0, process->host_places, process->port_places);
@@ -178,6 +179,28 @@ int fork_job(struct process *process)
     return 0;
 }
 
+void change_prices()
+{
+    int i, price;
+    printf("Prix :\n");
+    for (i = 0; i < CAT_MAX; i++) {
+        printf("\tCatégorie n°%d : %d\n", i + 1, prices[i]);
+    }
+    printf("Saisir numéro de la catégorie : ");
+    scanf("%d", &i);
+    getchar();
+    if (i < CAT_MIN || i > CAT_MAX) {
+        printf("Choix non reconnu\n");
+    }
+    i--;
+    printf("Saisir nouveau prix (%d) : ", prices[i]);
+    if (scanf("%d", &price) != 1 || price < 0) {
+        printf("Veuillez saisir un prix valide\n");
+    }
+    getchar();
+    prices[i] = price;
+}
+
 int main(int argc, char *argv[])
 {
     int port, sock;
@@ -203,6 +226,9 @@ int main(int argc, char *argv[])
     scanf_port(argv[3], port);
     process.host_places = argv[2];
     process.port_places = port;
+    prices[0] = 50;
+    prices[1] = 30;
+    prices[2] = 20;
 
     if (sscanf(argv[4], "%d", &process.timeout) != 1 || process.timeout < 0) {
         sprintf(process.buf_log, "Timeout must be upper than 0");
@@ -217,8 +243,27 @@ int main(int argc, char *argv[])
     }
 
     nbchild = 0;
+    addr_client_len = sizeof(addr_client);
+    port = atoi(argv[1]);
+
+    if ((process.pid = fork()) == 0) {
+        for (;;) {
+            printf("Pour quitter saissez : 'q'\n");
+            printf("Appuyer sur une touche pour changer les prix\n");
+            process.buf[0] = getchar();
+            if (process.buf[0] == -1 || process.buf[0] == 'q') {
+                kill(getppid(), SIGINT);
+                exit(EXIT_SUCCESS);
+            }
+            change_prices();
+            system("clear");
+            display_any_address(AF_INET, port);
+        }
+    } else if (process.pid == -1) {
+        handle_error();
+    }
+
     for(;;) {
-        addr_client_len = sizeof(addr_client);
         if ((process.sock_client = accept(sock, (struct sockaddr *) &addr_client, &addr_client_len)) == -1) {
             if (errno == EINTR) goto end;
             handle_error();
@@ -251,6 +296,7 @@ int main(int argc, char *argv[])
 
 end:
     close(sock);
+    printf("Appuyer sur 'q'\n");
     printf("Wait subprocess...\n");
     do {
         wait(&st);
