@@ -94,6 +94,30 @@ int ask_ticket(struct process *process, char *hostname, const ushort port)
     return prices[cat] * nticket + ((prices[cat] - (prices[cat] * 20 / 100)) * sticket);
 }
 
+int payment(struct process *process, const int price)
+{
+    int len, len_write;
+
+    // FIXME: The client received more than the format below
+    len = sprintf(process->buf, "%d", price) + 1;
+    sprintf(process->buf_log, "[%d] I write : %s to the customer", process->pid, process->buf);
+    printf_info(process->buf_log);
+    if ((len_write = write(process->sock_client, process->buf, len)) != len) {
+        if (len_write == -1)
+            sprintf(process->buf_log, "[%d] %s", process->pid, strerror(errno));
+        else
+            sprintf(process->buf_log, "[%d] %d bytes wre sent out of %d\n", process->pid, len_write, len);
+        return -1;
+    }
+
+    if ((len = read(process->sock_client, process->buf, BUF_SOCK)) == -1) {
+        sprintf(process->buf_log, "[%d] %s", process->pid, strerror(errno));
+        return -1;
+    }
+
+    return 0;
+}
+
 int fork_job(struct process *process, char *hostname, const ushort port)
 {
     int price;
@@ -107,7 +131,9 @@ int fork_job(struct process *process, char *hostname, const ushort port)
     sprintf(process->buf_log, "[%d] %d €", process->pid, price);
     printf_info(process->buf_log);
 
-    //TODO: payment
+    if (payment(process, price) == -1) {
+        return -1;
+    }
 
     close(process->sock_client);
     return 0;
