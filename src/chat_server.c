@@ -35,12 +35,11 @@ void error(char *message)
 int main(int argc, char **argv)
 {
   fd_set readfds;
-  struct timeval tv;
   int numfd;
 	char *delim = "\n";
 
   int socket_fd, bytes_read;
-  int lgadresseClient;
+  socklen_t lgadresseClient;
   char recieve_data[MAX_LENGTH],send_data[MAX_LENGTH];
   struct sockaddr_in server_address , client_address[MAX_CLIENT],client_address_temp;
 	char *buf;
@@ -136,7 +135,7 @@ int main(int argc, char **argv)
           }
 
           lgadresseClient = sizeof(client_address[choixClient]);
-        
+
 	        if ((strcmp(buf , "q") == 0) || strcmp(buf , "Q") == 0) //if user quits, then send an invisible message to server to quit also
 	        {
 						sendto(socket_fd, buf, MAX_LENGTH, 0, (struct sockaddr *)&client_address[choixClient], lgadresseClient);
