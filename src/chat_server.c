@@ -35,12 +35,11 @@ void error(char *message)
 int main(int argc, char **argv)
 {
   fd_set readfds;
-  struct timeval tv;
   int numfd;
 	char *delim = "\n";
 
   int socket_fd, bytes_read;
-  int lgadresseClient;
+  socklen_t lgadresseClient;
   char recieve_data[MAX_LENGTH],send_data[MAX_LENGTH];
   struct sockaddr_in server_address , client_address[MAX_CLIENT],client_address_temp;
 	char *buf;
@@ -126,7 +125,7 @@ int main(int argc, char **argv)
           read(STDIN_FILENO, send_data, MAX_LENGTH); //input the name with a size limit of MAX_LENGTH
           buf = strtok(send_data,delim);
 
-          printf("Quel client : %d\n", (nbClient+1)/2);
+          printf("Quel client : %d\n", (nbClient+2)/2);
           scanf("%d", &choixClient);
           choixClient--;
           if (choixClient == 0){
@@ -136,7 +135,7 @@ int main(int argc, char **argv)
           }
 
           lgadresseClient = sizeof(client_address[choixClient]);
-        
+
 	        if ((strcmp(buf , "q") == 0) || strcmp(buf , "Q") == 0) //if user quits, then send an invisible message to server to quit also
 	        {
 						sendto(socket_fd, buf, MAX_LENGTH, 0, (struct sockaddr *)&client_address[choixClient], lgadresseClient);
@@ -162,12 +161,13 @@ int main(int argc, char **argv)
             client_address[choixClient] = client_address_temp;
           }
 
-          printf("\nNuméro client : %d \n(%s , %d) said: %s\n",(choixClient+1)/2,inet_ntoa(client_address[choixClient].sin_addr),ntohs(client_address[choixClient].sin_port),recieve_data);
+          printf("\nNuméro client : %d \n(%s , %d) said: %s\n",(choixClient+2)/2,inet_ntoa(client_address[choixClient].sin_addr),ntohs(client_address[choixClient].sin_port),recieve_data);
         }
         else printf("\nOOPS! What happened? SERVER");
     		} //end else
   }//end while
 
   close (socket_fd);
+
   return 0;
 }

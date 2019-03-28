@@ -163,21 +163,24 @@ int main(int argc, char const *argv[])
 
 	unsigned int send, size;
 
-	int len, res = 0, nbaskticket = 1;
+	int len, res, nbaskticket;
 
 	/* informations sur les tickets envoyé à Concert */
 	char *tickets = malloc(sizeof(int));
 
-debut:
+
 
 	/* Vérification nombre d'argument */
 	if (argc != 3) {
 		printf("Usage: %s <port> <serveur>\n", argv[0]);
 		exit(EXIT_FAILURE);
 	}
+
+debut:
 	/* Vérification si l'arguement est bien un entier entre 1 et 65535 */
 	scanf_port(argv[1], port);
-
+	res = 0;
+	nbaskticket = 1;
 
 
 	/* Récupération de l'adresse IP du serveur (à partir du nom) */
@@ -215,11 +218,10 @@ debut:
 	/* Le serveur a accepté la connexion */
 	printf("Connecté au site Concert\n");
 	fflush(stdout);
-	port = 5000;
-
 
 	while(res < nbaskticket){
-
+		nbaskticket = 0;
+		res = 0;
 		/*----------CATEGORIE------------*/
 		printf("Categories des tickets :\n[1] [2] [3]\n");
 		/* informations entré par le consommateur */
@@ -296,11 +298,12 @@ debut:
 
 		/* lecture des informations encoyé par l'application concert */
 		if ((len = read(sock, buf, (sizeof(char)*BUF_SOCK))) == -1) {
-			printf_warning(strerror(errno));
+			printf("oops\n");
+		//	printf_warning(strerror(errno));
 			goto loop_end;
 		}
 		sscanf(buf, "%d", &res);
-		printf("%d\n", res);
+	//	printf("%d/%d\n", res,nbaskticket);
 	}
 
 
@@ -308,7 +311,6 @@ debut:
 	if ((len = read(sock, buf, (sizeof(char)*BUF_SOCK))) == -1) {
 		printf_warning(strerror(errno));
 	}
-
 	printf("Montant transaction : %s\n", buf);
 	printf("Numero carte:\n");
 

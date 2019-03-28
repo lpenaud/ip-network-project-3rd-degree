@@ -1,8 +1,10 @@
 #ifndef HELPERS_H
 #define HELPERS_H
 
+#define CAT_MIN     1
+#define CAT_MAX     3
 #define BUF_SOCK    20
-#define BUF_LOG 80
+#define BUF_LOG     80
 #define ANSI_RESET  "\x1b[0m"
 #define ANSI_BOLD   "\x1b[1m"
 #define ANSI_RED    "\x1b[31m"
@@ -70,5 +72,9 @@ int boucle_send(int sock, void *buf, int lg, struct sockaddr_in *addrs, size_t l
    - int nb_conn   - Nombre de connexion maximale
  */
 int listen_new_socket(int domain, int type, int protocol, ushort port, int nb_conn);
+
+int find_index(int *array, size_t sz, int val);
+
+int connect_new_socket(int domain, int type, int protocol, char *hostname, ushort port);
 
 #endif
