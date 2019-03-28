@@ -215,8 +215,6 @@ debut:
 	/* Le serveur a accepté la connexion */
 	printf("Connecté au site Concert\n");
 	fflush(stdout);
-	port = 5000;
-
 
 	while(res < nbaskticket){
 

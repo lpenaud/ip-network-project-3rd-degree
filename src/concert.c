@@ -65,6 +65,7 @@ int ask_ticket(struct process *process)
     }
 
     do {
+        process->ticket = -1;
         // Receive nb places from achat app
         alarm(process->timeout);
         if ((len = read(process->sock_client, process->buf, BUF_SOCK)) == -1) {
@@ -74,6 +75,7 @@ int ask_ticket(struct process *process)
                 sprintf(process->buf_log, "[%d] %s", process->pid, strerror(errno));
             return -1;
         }
+        printf("JE SUIS LÀ\n");
         alarm(0);
         if (sscanf(process->buf, "%d %d %d", &cat, &nticket, &sticket) != 3
             || cat < CAT_MIN || cat > CAT_MAX
@@ -283,7 +285,6 @@ int main(int argc, char *argv[])
                     handle_error();
                 }
                 process.pid = getpid();
-                process.ticket = -1;
                 if (fork_job(&process) == -1)
                     printf_err_exit(process.buf_log);
                 sprintf(process.buf_log, "[%d] Bye !", process.pid);

@@ -70,11 +70,13 @@ int main(int argc, char const *argv[])
         // Lecture de la socket du client et vérification s'il n'y a pas d'erreur
         if ((len = read(sock_client, buf, BUF_SOCK)) == -1) {
             printf_warning(strerror(errno));
+            continue;
         }
         // Scanne de la socket pour vérifier s'il y a bien un entier
         if (sscanf(buf, "%d %d", &cat, &res) != 2 || cat < CAT_MIN || cat > CAT_MAX) {
             sprintf(buf_log, "I received \"%s\", I ignore", buf);
             printf_warning(buf_log);
+            continue;
         }
         sprintf(buf_log, "I received %s, number of ticket %d of this categorie", buf, tickets[--cat]);
         printf_info(buf_log);
