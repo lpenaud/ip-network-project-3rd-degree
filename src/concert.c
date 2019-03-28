@@ -8,7 +8,8 @@
 #include <string.h>
 #include <signal.h>
 #include <sys/wait.h>
-#include <poll.h>
+#include <sys/mman.h>
+
 
 #include "helpers.h"
 
@@ -20,9 +21,8 @@ struct process {
     char buf[BUF_SOCK], buf_log[BUF_LOG];
     char *host_places;
     ushort port_places;
+    int *prices;
 };
-
-static int prices[CAT_MAX];
 
 static void handler(int signum)
 {
@@ -127,7 +127,7 @@ int ask_ticket(struct process *process)
 
     process->ticket = tticket;
     process->categorie = cat--;
-    return prices[cat] * nticket + ((prices[cat] - (prices[cat] * 20 / 100)) * sticket);
+    return process->prices[cat] * nticket + ((process->prices[cat] - (process->prices[cat] * 20 / 100)) * sticket);
 }
 
 int payment(struct process *process, const int price)
@@ -179,12 +179,12 @@ int fork_job(struct process *process)
     if (payment(process, price) == -1) {
         return -1;
     }
-    
+
     fork_exit(process, 0);
     return 0;
 }
 
-void change_prices()
+void change_prices(int *prices)
 {
     int i, price;
     printf("Prix :\n");
@@ -231,9 +231,18 @@ int main(int argc, char *argv[])
     scanf_port(argv[3], port);
     process.host_places = argv[2];
     process.port_places = port;
-    prices[0] = 50;
-    prices[1] = 30;
-    prices[2] = 20;
+
+    process.prices = mmap(
+        NULL,
+        sizeof(int) * CAT_MAX,
+        PROT_READ | PROT_WRITE,
+        MAP_SHARED | MAP_ANONYMOUS,
+        -1,
+        0
+    );
+    process.prices[0] = 50;
+    process.prices[1] = 30;
+    process.prices[2] = 20;
 
     if (sscanf(argv[4], "%d", &process.timeout) != 1 || process.timeout < 0) {
         sprintf(process.buf_log, "Timeout must be upper than 0");
@@ -260,7 +269,7 @@ int main(int argc, char *argv[])
                 kill(getppid(), SIGINT);
                 exit(EXIT_SUCCESS);
             }
-            change_prices();
+            change_prices(process.prices);
             system("clear");
             display_any_address(AF_INET, port);
         }
@@ -305,6 +314,7 @@ end:
     do {
         wait(&st);
     } while (errno != ECHILD);
+    munmap(process.prices, sizeof(int) * CAT_MAX);
     printf("Bye !\n");
     exit(EXIT_SUCCESS);
 }
