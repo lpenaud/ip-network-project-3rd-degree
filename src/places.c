@@ -66,7 +66,7 @@ int main(int argc, char const *argv[])
         // La connexion a été accepté
         sprintf(buf_log, "%s has connected", inet_ntoa(addr_client.sin_addr));
         printf_info(buf_log);
-
+tomuch:
         // Lecture de la socket du client et vérification s'il n'y a pas d'erreur
         if ((len = read(sock_client, buf, BUF_SOCK)) == -1) {
             printf_warning(strerror(errno));
@@ -94,7 +94,21 @@ int main(int argc, char const *argv[])
                 // Il y a plus assez de billet
                 // on renvoie le nombre de billet disponible
                 // sans toucher au nombre de billet disponible
+
+
                 res = -tickets[cat];
+                len = sprintf(buf, "%d", res) + 1;
+                if ((len_write = write(sock_client, buf, len)) != len) {
+                    // Erreur lors de l'envoie
+                    if (len_write == -1) {
+                        printf_warning(strerror(errno));
+                    } else {
+                        // On a pas tout envoyé
+                        sprintf(buf_log, "%d bytes were sent out of %d", len, len_write);
+                        printf_warning(buf_log);
+                    }
+                }
+                goto tomuch;
             } else {
                 // Il y a suffisament de billet
                 // On soustraits le nombre de billet disponible

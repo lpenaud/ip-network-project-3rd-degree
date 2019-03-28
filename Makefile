@@ -7,6 +7,9 @@ all: index.html concert.out places.out achat.out chat_server.out
 index.html: README.md design/*
 	pandoc -f gfm -t html5 -o $@ -s $< --metadata-file=design/metadata.yaml --toc
 
+chat_server.out: objects/chat_server.o objects/helpers.o
+	$(CC) $^ -o $@ $(LDFLAGS)
+
 concert.out: objects/concert.o objects/helpers.o
 	$(CC) $^ -o $@ $(LDFLAGS)
 

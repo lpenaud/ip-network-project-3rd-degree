@@ -8,7 +8,8 @@
 #include <string.h>
 #include <signal.h>
 #include <sys/wait.h>
-#include <poll.h>
+#include <sys/mman.h>
+
 
 #include "helpers.h"
 
@@ -20,9 +21,8 @@ struct process {
     char buf[BUF_SOCK], buf_log[BUF_LOG];
     char *host_places;
     ushort port_places;
+    int *prices;
 };
-
-static int prices[CAT_MAX];
 
 static void handler(int signum)
 {
@@ -65,6 +65,7 @@ int ask_ticket(struct process *process)
     }
 
     do {
+        process->ticket = -1;
         // Receive nb places from achat app
         alarm(process->timeout);
         if ((len = read(process->sock_client, process->buf, BUF_SOCK)) == -1) {
@@ -74,6 +75,7 @@ int ask_ticket(struct process *process)
                 sprintf(process->buf_log, "[%d] %s", process->pid, strerror(errno));
             return -1;
         }
+        printf("JE SUIS LÀ\n");
         alarm(0);
         if (sscanf(process->buf, "%d %d %d", &cat, &nticket, &sticket) != 3
             || cat < CAT_MIN || cat > CAT_MAX
@@ -125,7 +127,7 @@ int ask_ticket(struct process *process)
 
     process->ticket = tticket;
     process->categorie = cat--;
-    return prices[cat] * nticket + ((prices[cat] - (prices[cat] * 20 / 100)) * sticket);
+    return process->prices[cat] * nticket + ((process->prices[cat] - (process->prices[cat] * 20 / 100)) * sticket);
 }
 
 int payment(struct process *process, const int price)
@@ -138,10 +140,12 @@ int payment(struct process *process, const int price)
     if ((len_write = write(process->sock_client, process->buf, len)) != len) {
         if (len_write == -1)
             sprintf(process->buf_log, "[%d] %s", process->pid, strerror(errno));
-        else
-            sprintf(process->buf_log, "[%d] %d bytes wre sent out of %d\n", process->pid, len_write, len);
+         else
+            sprintf(process->buf_log, "[%d] %d bytes were sent out of %d\n", process->pid, len_write, len);
         return -1;
     }
+
+
 
     alarm(process->timeout);
     if ((len = read(process->sock_client, process->buf, BUF_SOCK)) == -1) {
@@ -170,6 +174,7 @@ int fork_job(struct process *process)
     }
     sprintf(process->buf_log, "[%d] %d €", process->pid, price);
     printf_info(process->buf_log);
+    sleep(1);
 
     if (payment(process, price) == -1) {
         return -1;
@@ -179,7 +184,7 @@ int fork_job(struct process *process)
     return 0;
 }
 
-void change_prices()
+void change_prices(int *prices)
 {
     int i, price;
     printf("Prix :\n");
@@ -226,9 +231,18 @@ int main(int argc, char *argv[])
     scanf_port(argv[3], port);
     process.host_places = argv[2];
     process.port_places = port;
-    prices[0] = 50;
-    prices[1] = 30;
-    prices[2] = 20;
+
+    process.prices = mmap(
+        NULL,
+        sizeof(int) * CAT_MAX,
+        PROT_READ | PROT_WRITE,
+        MAP_SHARED | MAP_ANONYMOUS,
+        -1,
+        0
+    );
+    process.prices[0] = 50;
+    process.prices[1] = 30;
+    process.prices[2] = 20;
 
     if (sscanf(argv[4], "%d", &process.timeout) != 1 || process.timeout < 0) {
         sprintf(process.buf_log, "Timeout must be upper than 0");
@@ -255,7 +269,7 @@ int main(int argc, char *argv[])
                 kill(getppid(), SIGINT);
                 exit(EXIT_SUCCESS);
             }
-            change_prices();
+            change_prices(process.prices);
             system("clear");
             display_any_address(AF_INET, port);
         }
@@ -283,7 +297,6 @@ int main(int argc, char *argv[])
                     handle_error();
                 }
                 process.pid = getpid();
-                process.ticket = -1;
                 if (fork_job(&process) == -1)
                     printf_err_exit(process.buf_log);
                 sprintf(process.buf_log, "[%d] Bye !", process.pid);
@@ -301,6 +314,7 @@ end:
     do {
         wait(&st);
     } while (errno != ECHILD);
+    munmap(process.prices, sizeof(int) * CAT_MAX);
     printf("Bye !\n");
     exit(EXIT_SUCCESS);
 }

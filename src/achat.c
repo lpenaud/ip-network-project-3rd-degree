@@ -57,16 +57,16 @@ void help(const char * hostname, int port){
 		handle_error();
 	}
 
+	/*Passage en mode read non blockant*/
 	int flags = fcntl(socket_fd, F_GETFL);
 	flags |= O_NONBLOCK;
 	fcntl(socket_fd, F_SETFL, flags);
-	//fcntl(socket_fd, F_SETFL, O_NONBLOCK); //set socket to non-blocking
 
 
 
 
-	// since we got s2 second, it's the "greater", so we use that for
-	// the n param in select()
+	  /* on utilise "le plus grand" descripteur et comme stdin vaut 0 on utilise
+	  le descripteur de la socket*/
 	numfd = socket_fd + 1;
 
 
@@ -84,27 +84,24 @@ void help(const char * hostname, int port){
 		FD_ZERO(&readfds);
 		fflush(stdout);
 		fflush(stdin);
-		// add our descriptors to the set (0 - stands for STDIN)
+
+		// ajout des descripteurs au set (0 - stands for STDIN)
 		FD_SET(socket_fd, &readfds);
 		FD_SET(0, &readfds);
 
 		int recieve = select(numfd, &readfds, NULL, NULL, NULL);
 		if (recieve == -1)
 		{
-			perror("select"); // error occurred in select()
-		}
-		else if (recieve == 0)
-		{
-			printf("Timeout occurred!  No data after 10.5 seconds.\n");
+			handle_error();
 		}
 		else
 		{
-			// one or both of the descriptors have data
-			if (FD_ISSET(socket_fd, &readfds)) //if set to read
+    // un ou les deux descripteur on des données
+			if (FD_ISSET(socket_fd, &readfds)) //lecture de la socket
 			{
-				FD_CLR(socket_fd, &readfds);//clear the set
+				FD_CLR(socket_fd, &readfds);
 				bytes_recieved = recvfrom(socket_fd,recieve_data, sizeof(recieve_data),0,(struct sockaddr *)&server_address,&address_length);
-				recieve_data[bytes_recieved]= '\0';
+				recieve_data[bytes_recieved]= '\0';//ajouter \0 a la fin d'un buffer
 
 				if((strcmp(recieve_data , "q") == 0) || (strcmp(recieve_data , "Q") == 0)) //if client quit, then quit also
 				{
@@ -113,19 +110,19 @@ void help(const char * hostname, int port){
 				}
 
 				printf("\n(%s , %d) said: %s\n",inet_ntoa(server_address.sin_addr),ntohs(server_address.sin_port),recieve_data);
-				//inet_ntoa returns an ip address ipv4 style, ex: 127.0.0.1, and ntohs returns the port in the converted byte ordering
 			}
 
-			else if (FD_ISSET(0/*socket_fd*/, &readfds)) //if set to write
+			else if (FD_ISSET(0, &readfds)) //si stdin est "non vide"
 				//else
 			{
 				FD_CLR(0, &readfds);
 
-				read(STDIN_FILENO, send_data, BUF_LOG); //input the name with a size limit of MAX_LENGTH
+				read(STDIN_FILENO, send_data, BUF_LOG);  /* on lit l'enntree courante
+				donc la réponse de l'opérateur  */
 				buf =strtok(send_data,delim);
 
 
-				if ((strcmp(buf , "q") == 0) || strcmp(buf , "Q") == 0) //if user quits, then send an invisible message to server to quit also
+				if ((strcmp(buf , "q") == 0) || strcmp(buf , "Q") == 0)// verification que l'utilisateur ne quitte pas
 				{
 					sendto(socket_fd, buf, BUF_LOG, 0, (struct sockaddr *)&server_address, sizeof(struct sockaddr));
 					break;
@@ -138,8 +135,8 @@ void help(const char * hostname, int port){
 
 			}
 			else printf("\nOOPS! What happened? CLIENT");
-		} //end else
-	} // end while
+		}
+	}
 
 	close (socket_fd);
 
@@ -163,21 +160,24 @@ int main(int argc, char const *argv[])
 
 	unsigned int send, size;
 
-	int len, res = 0, nbaskticket = 1;
+	int len, res, nbaskticket;
 
 	/* informations sur les tickets envoyé à Concert */
 	char *tickets = malloc(sizeof(int));
 
-debut:
+
 
 	/* Vérification nombre d'argument */
 	if (argc != 3) {
 		printf("Usage: %s <port> <serveur>\n", argv[0]);
 		exit(EXIT_FAILURE);
 	}
+
+debut:
 	/* Vérification si l'arguement est bien un entier entre 1 et 65535 */
 	scanf_port(argv[1], port);
-
+	res = 0;
+	nbaskticket = 1;
 
 
 	/* Récupération de l'adresse IP du serveur (à partir du nom) */
@@ -197,10 +197,7 @@ debut:
 
 
 	addr_server_len = sizeof(addr_server);
-	/* Demande de connexion au serveur */
-	if ((connect(sock, (struct sockaddr *) &addr_server, addr_server_len)) == -1) {
-		handle_error();
-	}
+
 
 	/* On s'occupe du signal SIGINT (Ctrl+C) */
 	sa.sa_handler = handler;
@@ -217,7 +214,8 @@ debut:
 	fflush(stdout);
 
 	while(res < nbaskticket){
-
+		nbaskticket = 0;
+		res = 0;
 		/*----------CATEGORIE------------*/
 		printf("Categories des tickets :\n[1] [2] [3]\n");
 		/* informations entré par le consommateur */
@@ -281,6 +279,10 @@ debut:
 		strcat(tickets, " ");
 		strcat(tickets, buf);
 
+		/* Demande de connexion au serveur */
+		if ((connect(sock, (struct sockaddr *) &addr_server, addr_server_len)) == -1) {
+			handle_error();
+		}
 
 		size = (sizeof(int)*3)+(sizeof(char)*3);
 		if ((send = write(sock, tickets, size)) !=  size)
@@ -294,19 +296,19 @@ debut:
 
 		/* lecture des informations encoyé par l'application concert */
 		if ((len = read(sock, buf, (sizeof(char)*BUF_SOCK))) == -1) {
-			printf_warning(strerror(errno));
+			handle_error();
 			goto loop_end;
 		}
 		sscanf(buf, "%d", &res);
-		printf("%d\n", res);
+
 	}
 
 
+/*----------PAYEMENT------------*/
 
 	if ((len = read(sock, buf, (sizeof(char)*BUF_SOCK))) == -1) {
 		printf_warning(strerror(errno));
 	}
-
 	printf("Montant transaction : %s\n", buf);
 	printf("Numero carte:\n");
 
@@ -315,7 +317,7 @@ debut:
 		help(argv[2] ,port);
 		goto debut;
 	}
-
+/* envois des infos payement*/
 	if ((send = write(sock, buf, sizeof(int))) !=  sizeof(int))
 	{
 		handle_error();
