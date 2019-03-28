@@ -19,9 +19,6 @@ places.out: objects/places.o objects/helpers.o
 achat.out: objects/achat.o objects/helpers.o
 	$(CC) $^ -o $@ $(LDFLAGS)
 
-chat_server.out: objects/chat_server.o
-	$(CC) $^ -o $@ $(LDFLAGS)
-
 objects/helpers.o: src/helpers.h
 
 objects/%.o: src/%.c

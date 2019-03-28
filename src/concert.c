@@ -263,7 +263,7 @@ int main(int argc, char *argv[])
     if ((process.pid = fork()) == 0) {
         for (;;) {
             printf("Pour quitter saissez : 'q'\n");
-            printf("Appuyer sur une touche pour changer les prix\n");
+            printf("Appuyer sur une <enter> pour changer les prix\n");
             process.buf[0] = getchar();
             if (process.buf[0] == -1 || process.buf[0] == 'q') {
                 kill(getppid(), SIGINT);
