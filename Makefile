@@ -1,8 +1,8 @@
 CC=gcc
-CFLAGS=-W -Wall -pedantic
+CFLAGS=-W -Wall -pedantic -std=gnu99
 LDFLAGS=
 
-all: index.html concert.out places.out achat.out
+all: index.html concert.out places.out achat.out chat_server.out
 
 index.html: README.md design/*
 	pandoc -f gfm -t html5 -o $@ -s $< --metadata-file=design/metadata.yaml --toc

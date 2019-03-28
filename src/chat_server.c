@@ -1,36 +1,54 @@
-/* receveur portReceveur */
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <errno.h>
+//SERVER
 #include <sys/types.h>
-#include <netdb.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <signal.h>
 #include <arpa/inet.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <errno.h>
 #include <string.h>
+#include <stdlib.h>
+#include <sys/select.h>//use select() for multiplexing
+#include <sys/fcntl.h> // for non-blocking
 
-#define TRUE 1
+
+
+#define MAX_LENGTH 1024
 #define MAX_CLIENT 100
-#define BUFFER_MAX 80
 
-#include "helpers.h"
+/* Select() params
+ * int select(int n, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout);
+ * FD_SET(int fd, fd_set *set);
+ * FD_CLR(int fd, fd_set *set);
+ * FD_ISSET(int fd, fd_set *set);
+ * FD_ZERO(fd_set *set);
+*/
 
-int main(int argc, char const *argv[])
+int nbClient = 0;
+
+void error(char *message)
 {
-  int socketAccueil,recu,envoye,i;
-	struct sockaddr_in adresseLocale, client, adresseClient[MAX_CLIENT];
-	int lgadresseLocale, lgadresseClient, lgClient;
-	int nbtour = 1;
+    perror(message);
+    exit(1);
+}
 
-	char description[BUFFER_MAX];
-	long offreInitial;
+int main(int argc, char **argv)
+{
+  fd_set readfds;
+  struct timeval tv;
+  int numfd;
+	char *delim = "\n";
 
-	char c;
+  int socket_fd, bytes_read;
+  int lgadresseClient;
+  char recieve_data[MAX_LENGTH],send_data[MAX_LENGTH];
+  struct sockaddr_in server_address , client_address[MAX_CLIENT],client_address_temp;
+	char *buf;
 
-	int port;
+  int choixClient, i;
+
+
+  int port;
 
 	if (argc != 2) {
 		printf("Usage: %s <port>\n", argv[0]);
@@ -41,114 +59,115 @@ int main(int argc, char const *argv[])
 		return EXIT_FAILURE;
 	}
 
+  if ((socket_fd = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
+  {
+      error("socket()");
+  }
+
+	int flags = fcntl(socket_fd, F_GETFL, 0);
+	fcntl(socket_fd, F_SETFL, flags | O_NONBLOCK);
 
 
+  // since we got s2 second, it's the "greater", so we use that for
+  // the n param in select()
+  numfd = socket_fd + 1;
 
-	/* creation de la socket */
-	if ((socketAccueil = socket(AF_INET,SOCK_DGRAM,0)) == -1)
-	{
-		perror("socket");
-		exit(1);
-	}
 
-	/* preparation de l'adresse locale : port + toutes les @ IP */
-	adresseLocale.sin_family = AF_INET;
-	adresseLocale.sin_port = htons(port);
-	adresseLocale.sin_addr.s_addr = htonl(INADDR_ANY);
+  server_address.sin_family = AF_INET;
+  server_address.sin_port = htons(port);
+  server_address.sin_addr.s_addr = INADDR_ANY;
+  bzero(&(server_address.sin_zero),8);
 
-	/* attachement de la socket a` l'adresse locale */
-	lgadresseLocale = sizeof(adresseLocale);
-	if (bind(socketAccueil, (struct sockaddr *) &adresseLocale, lgadresseLocale) == -1)
-	{
-		perror("bind");
-		exit(1);
-	}
 
-	/* boucle accueil */
-	c = 'o';
-	while((c == 'o' || c == 'O')&& nbClient < MAX_CLIENT)
-	{
-		lgadresseClient = sizeof(adresseClient[nbClient]);
-		recu = recvfrom(socketAccueil,description,BUFFER_MAX,0,(struct sockaddr *) adresseClient + nbClient, &lgadresseClient);
-		nbClient++;
-		printf("Nouveau client, on continue ? : [O/n]");
-		if((c = mgetchar('\n')) == '\n'){
-			c='o';
-		}
-		/*scanf("%c",out);
-		  if(out == 10){
-		  out = 'o';
-		  }*/
+  if (bind(socket_fd,(struct sockaddr *)&server_address, sizeof(struct sockaddr)) == -1)
+  {
+      error("bind()");
+  }
+
+  //lgadresseClient = sizeof(struct sockaddr);
+
+  printf("\nUDP_Server Waiting for client to respond...\n");
+  fflush(stdout);
+  printf("Type (q or Q) at anytime to quit\n");
+
+
+  while (1)
+  {
+		// clear the set ahead of time
+		FD_ZERO(&readfds);
 		fflush(stdout);
 		fflush(stdin);
-	}
+		// add our descriptors to the set (0 - stands for STDIN)
+	  FD_SET(socket_fd, &readfds);
+	  FD_SET(0, &readfds);
+    choixClient = 0;
 
-	/*lancement vente*/
 
-	printf("Saisir la description de vente ?\n");
-	scanf("%s",description);
-	fflush(stdout);
-	printf("Saisir prix initial :\n");
-	scanf("%ld",&offreInitial);
-	fflush(stdin);
+    int recieve = select(numfd, &readfds, NULL,/*NULL,*/ NULL, NULL);
 
-	/* creation de la socket de vente */
-	if ((socketVente = socket(AF_INET,SOCK_DGRAM,0)) == -1)
-	{
-		perror("socket");
-		exit(1);
-	}
+    if (recieve == -1)
+    {
+      perror("select"); // error occurred in select()
+    }
+    else if (recieve == 0)
+    {
+      printf("Timeout occurred!  No data after 10.5 seconds.\n");
+    }
+    else
+    {
 
-	for(i = 0; i < nbClient; i++){
-		lgadresseClient = sizeof(adresseClient[i]);
-		if ((envoye = sendto(socketVente,description,strlen(description)+1,0,(struct sockaddr *) &adresseClient[i], lgadresseClient)) != strlen(description)+1)
-		{
-			perror("sendto descr");
-			close(socketVente);
-			exit(1);
-		}
-		lgadresseClient = sizeof(adresseClient[i]);
-		if ((envoye = sendto(socketVente,&offreInitial,sizeof(long),0,(struct sockaddr *) &adresseClient[i], lgadresseClient)) != sizeof(long))
-		{
-			perror("sendto entier");
-			close(socketVente);
-			exit(1);
-		}
-	}
+        // one or both of the descriptors have data
 
-	c = 'o';
+        if (FD_ISSET(/*socket_fd*/0, &readfds)) //if set to write
+        //else
+        {
 
-	fflush(stdout);
-	fflush(stdin);
-	system("clear");
-	while((c == 'o' || c == 'O')&& nbClient < MAX_CLIENT){
+					FD_CLR(0, &readfds);
+          read(STDIN_FILENO, send_data, MAX_LENGTH); //input the name with a size limit of MAX_LENGTH
+          buf = strtok(send_data,delim);
 
-		fflush(stdout);
-		fflush(stdin);
+          printf("Quel client : %d\n", (nbClient+1)/2);
+          scanf("%d", &choixClient);
+          choixClient--;
+          if (choixClient == 0){
+            choixClient++;
+          }else{
+            choixClient = choixClient*2;
+          }
 
-		lgClient = sizeof(client);
-		recu = recvfrom(socketVente,&offreInitial,sizeof(long),0,(struct sockaddr *) &client, &lgClient);
-		printf("Nouveau prix : %lu, on continue ? : [O/n]\n", offreInitial);
-		if(nbtour == 1)c=getchar();
-		if((c = mgetchar('\n')) == '\n'){
-			c='o';
-		}
+          lgadresseClient = sizeof(client_address[choixClient]);
+        
+	        if ((strcmp(buf , "q") == 0) || strcmp(buf , "Q") == 0) //if user quits, then send an invisible message to server to quit also
+	        {
+						sendto(socket_fd, buf, MAX_LENGTH, 0, (struct sockaddr *)&client_address[choixClient], lgadresseClient);
+            break;
+          }
+          sendto(socket_fd, buf, MAX_LENGTH, 0,(struct sockaddr *)&client_address[choixClient], lgadresseClient);
 
-		nbtour++;
+        } else if (FD_ISSET(socket_fd, &readfds)) //if set to read
+        {
+          choixClient = -1;
+          FD_CLR(socket_fd, &readfds);
+          lgadresseClient = sizeof(client_address[nbClient]);
+          bytes_read = recvfrom(socket_fd, recieve_data, MAX_LENGTH, 0, (struct sockaddr *)&client_address_temp, &lgadresseClient); //block call, will wait till client enters something, before proceeding
+          recieve_data[bytes_read] = '\0'; //add null to the end of the buffer
+          for(i = 0; i < nbClient; i++){
+              if(client_address_temp.sin_port == client_address[i].sin_port){
+                choixClient = i;
+              }
+          }
+          if (choixClient == -1) {
+            nbClient++;
+            choixClient = nbClient;
+            client_address[choixClient] = client_address_temp;
+          }
 
-		fflush(stdout);
-		fflush(stdin);
+          printf("\nNuméro client : %d \n(%s , %d) said: %s\n",(choixClient+1)/2,inet_ntoa(client_address[choixClient].sin_addr),ntohs(client_address[choixClient].sin_port),recieve_data);
+        }
+        else printf("\nOOPS! What happened? SERVER");
+    		} //end else
+  }//end while
 
-		for(i = 0; i < nbClient; i++){
-			lgadresseClient = sizeof(adresseClient[i]);
-			if ((envoye = sendto(socketVente,&offreInitial,sizeof(long),0,(struct sockaddr *) &adresseClient[i], lgadresseClient)) != sizeof(long))
-			{
-				perror("sendto entier");
-				close(socketVente);
-				exit(1);
-			}
-		}
-
-	}
-	close(socketAccueil);
+  close (socket_fd);
+  return 0;
 }
