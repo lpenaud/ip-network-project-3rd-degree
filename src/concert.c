@@ -33,16 +33,24 @@ void fork_exit(struct process *p, int interrupt)
 {
     int len;
     int fd;
+
+    // If the subprocess has been interrupted by signal
     if (interrupt != 0) {
         sprintf(p->buf_log, "[%d] Timeout", p->pid);
+
+        // Write "Timeout" to achat app
         len = sprintf(p->buf, "Timeout\n") + 1;
         write(p->sock_client, p->buf, len);
+
+        // If client allocate tickets
         if (p->ticket != -1) {
+            // New connection to places app
             fd = connect_new_socket(AF_INET, SOCK_STREAM, 0, p->host_places, p->port_places);
             if (fd == -1) {
                 sprintf(p->buf_log, "[%d] %s", p->pid, strerror(errno));
                 goto end;
             }
+            // Free tickets
             len = sprintf(p->buf, "%d %d\n", p->categorie, p->ticket) + 1;
             write(fd, p->buf, len);
             close(fd);
@@ -66,8 +74,9 @@ int ask_ticket(struct process *process)
 
     do {
         process->ticket = -1;
-        // Receive nb places from achat app
+        // Activate timeout
         alarm(process->timeout);
+        // Receive nb places from achat app
         if ((len = read(process->sock_client, process->buf, BUF_SOCK)) == -1) {
             if (errno == EINTR)
                 fork_exit(process, 1);
@@ -75,8 +84,11 @@ int ask_ticket(struct process *process)
                 sprintf(process->buf_log, "[%d] %s", process->pid, strerror(errno));
             return -1;
         }
-        printf("JE SUIS LÀ\n");
+        // Deactivate timeout
         alarm(0);
+
+        // Check buffer
+        // <categorie> <normal ticket> <student ticket>
         if (sscanf(process->buf, "%d %d %d", &cat, &nticket, &sticket) != 3
             || cat < CAT_MIN || cat > CAT_MAX
             || nticket < 0
@@ -125,8 +137,11 @@ int ask_ticket(struct process *process)
         }
     } while(tticket != rticket);
 
+    // In case where client not respond
     process->ticket = tticket;
     process->categorie = cat--;
+
+    // Calculate the price
     return process->prices[cat] * nticket + ((process->prices[cat] - (process->prices[cat] * 20 / 100)) * sticket);
 }
 
@@ -134,6 +149,7 @@ int payment(struct process *process, const int price)
 {
     int len, len_write;
 
+    // Write price to the client
     len = sprintf(process->buf, "%d\n", price) + 1;
     sprintf(process->buf_log, "[%d] I write : %s to the customer", process->pid, process->buf);
     printf_info(process->buf_log);
@@ -145,8 +161,8 @@ int payment(struct process *process, const int price)
         return -1;
     }
 
-
-
+    // Waiting for the client
+    // Then activate timeout
     alarm(process->timeout);
     if ((len = read(process->sock_client, process->buf, BUF_SOCK)) == -1) {
         if (errno == EINTR)
@@ -155,6 +171,7 @@ int payment(struct process *process, const int price)
             sprintf(process->buf_log, "[%d] %s", process->pid, strerror(errno));
         return -1;
     }
+    // We receive data then deactivate timeout
     alarm(0);
     sprintf(process->buf_log, "[%d] I read %s", process->pid, process->buf);
     printf_info(process->buf_log);
@@ -176,10 +193,7 @@ int fork_job(struct process *process)
     printf_info(process->buf_log);
     sleep(1);
 
-    if (payment(process, price) == -1) {
-        return -1;
-    }
-
+    payment(process, price);
     fork_exit(process, 0);
     return 0;
 }
@@ -232,6 +246,7 @@ int main(int argc, char *argv[])
     process.host_places = argv[2];
     process.port_places = port;
 
+    // Creation of prices table
     process.prices = mmap(
         NULL,
         sizeof(int) * CAT_MAX,
@@ -256,6 +271,7 @@ int main(int argc, char *argv[])
         handle_error();
     }
 
+    // Preparation of variables for display_any_address function
     nbchild = 0;
     addr_client_len = sizeof(addr_client);
     port = atoi(argv[1]);
@@ -278,6 +294,7 @@ int main(int argc, char *argv[])
     }
 
     for(;;) {
+        // Waiting for a client
         if ((process.sock_client = accept(sock, (struct sockaddr *) &addr_client, &addr_client_len)) == -1) {
             if (errno == EINTR) goto end;
             handle_error();
@@ -287,6 +304,7 @@ int main(int argc, char *argv[])
 
         nbchild++;
         if (nbchild > MAX_CONN) {
+            wait(&st);
             nbchild--;
         }
         switch (process.pid = fork()) {
@@ -309,7 +327,6 @@ int main(int argc, char *argv[])
 
 end:
     close(sock);
-    printf("Appuyer sur 'q'\n");
     printf("Wait subprocess...\n");
     do {
         wait(&st);
